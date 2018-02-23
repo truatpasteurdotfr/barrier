@@ -1,0 +1,13 @@
+diff --git a/src/lib/net/SecureSocket.cpp b/src/lib/net/SecureSocket.cpp
+index 7128fd66..0177e573 100644
+--- a/src/lib/net/SecureSocket.cpp
++++ b/src/lib/net/SecureSocket.cpp
+@@ -814,7 +814,7 @@ SecureSocket::showSecureCipherInfo()
+         showCipherStackDesc(sStack);
+     }
+ 
+-#if OPENSSL_VERSION_NUMBER < 0x10100000L
++#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER) // see PR for synergy-core 6182
+ 	// m_ssl->m_ssl->session->ciphers is not forward compatable,
+ 	// In future release of OpenSSL, it's not visible,
+     STACK_OF(SSL_CIPHER) * cStack = m_ssl->m_ssl->session->ciphers;
