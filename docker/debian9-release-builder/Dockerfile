@@ -14,16 +14,13 @@ wget \
 libxtst-dev libxinerama-dev libice-dev libxrandr-dev \
 libavahi-compat-libdnssd-dev \
 libcurl4-openssl-dev \
-libssl1.0-dev
+libssl1.0-dev \
+dh-make
 #libssl-dev  is causing these warnings -> using libssl1.0-dev instead
 #/usr/bin/ld: warning: libssl.so.1.0.2, needed by /usr/lib/gcc/x86_64-linux-gnu/6/../../../x86_64-linux-gnu/libcurl.so, may conflict with libssl.so.1.1
 #/usr/bin/ld: warning: libcrypto.so.1.0.2, needed by /usr/lib/gcc/x86_64-linux-gnu/6/../../../x86_64-linux-gnu/libcurl.so, may conflict with libcrypto.so.1.1
 #  
 RUN wget https://github.com/truatpasteurdotfr/barrier/archive/v2.0.0-RC2.tar.gz  && tar xzvf  v2.0.0-RC2.tar.gz  
-RUN cd barrier-2.0.0-RC2 && cp dist/rpm/build_env.sh . &&  ./clean_build.sh | tee clean_build.log && tar czvf build.tgz build clean_build.log
 # during the testing period using truatpasteurdotfr/barrier pre-released tarball
 # final version should use the https://github.com/debauchee/barrier release versions
-#RUN wget https://github.com/truatpasteurdotfr/barrier/archive/v2.0.0-RC2.tar.gz  && rpmbuild -ta v2.0.0-RC2.tar.gz  | tee rpmbuild.log
-# fix debian/changelog
-RUN apt-get -y install dh-make
 RUN cd barrier-2.0.0-RC2 && dpkg-buildpackage -us -uc | tee debian.log && tar czvf debian.tgz debian
