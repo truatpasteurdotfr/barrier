@@ -3,11 +3,8 @@ Version: 2.0.0
 Summary: Keyboard and mouse sharing solution
 Group: Applications/Productivity
 URL: https://github.com/debauchee/barrier/
-Source: barrier-2.0.0-RC2.tar.gz
-#Source: barrier-2.0.0-Source.tar.gz
-#Source: https://github.com/debauchee/barrier/archive/v2.0.0-RC2.tar.gz
-# workaround the git versionning and set to Release instead of the default Debug
-#Source1: build_env.sh
+Source: barrier-2.0.0.tar.gz
+# https://github.com/debauchee/barrier/archive/v2.0.0.tar.gz
 Vendor: Debauchee ### FIXME ###
 Packager: Tru Huynh <tru@pasteur.fr>
 License: GPLv2
@@ -38,14 +35,14 @@ Work seamlessly across Windows, macOS and Linux.
 %endif
 
 %prep
-#%setup -n %{name}-2.0.0-Source
-%setup -n %{name}-2.0.0-RC2
+%setup -n %{name}-%{version}
 
 %build
 echo "export B_BUILD_TYPE=Release"   > build_env.sh
 echo "export BARRIER_VERSION_MAJOR=2" >> build_env.sh
 echo "export BARRIER_VERSION_MINOR=0" >> build_env.sh
 echo "export BARRIER_VERSION_PATCH=0" >> build_env.sh
+echo "export BARRIER_VERSION_STAGE=RELEASE" >> build_env.sh
 echo "export BARRIER_REVISION=12345678"                     >> build_env.sh
 echo 'export B_CMAKE_FLAGS=" -D BARRIER_VERSION_MAJOR=${BARRIER_VERSION_MAJOR} -D BARRIER_VERSION_MINOR=${BARRIER_VERSION_MINOR} -D BARRIER_VERSION_PATCH=${BARRIER_VERSION_PATCH} -D BARRIER_VERSION_STAGE=${BARRIER_VERSION_STAGE} -D BARRIER_REVISION=${BARRIER_REVISION}"'  >> build_env.sh
 
@@ -82,5 +79,5 @@ scl enable devtoolset-3 ./clean_build.sh
 %attr(644,-,-) %{_datarootdir}/icons/hicolor/scalable/apps/barrier.svg
 
 %changelog
-* Fri Mar 23 2018 Tru Huynh <tru@pasteur.fr> - 
+* Sun Mar 25 2018 Tru Huynh <tru@pasteur.fr> - barrier 2.0.0-1
 - Initial rpm package for barrier
