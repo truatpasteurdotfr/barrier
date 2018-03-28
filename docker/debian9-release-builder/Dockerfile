@@ -20,7 +20,7 @@ dh-make
 #/usr/bin/ld: warning: libssl.so.1.0.2, needed by /usr/lib/gcc/x86_64-linux-gnu/6/../../../x86_64-linux-gnu/libcurl.so, may conflict with libssl.so.1.1
 #/usr/bin/ld: warning: libcrypto.so.1.0.2, needed by /usr/lib/gcc/x86_64-linux-gnu/6/../../../x86_64-linux-gnu/libcurl.so, may conflict with libcrypto.so.1.1
 #  
-RUN wget https://github.com/truatpasteurdotfr/barrier/archive/v2.0.0-RC2.tar.gz  && tar xzvf  v2.0.0-RC2.tar.gz  
+RUN wget https://github.com/truatpasteurdotfr/barrier/archive/v2.0.0.tar.gz  && tar xzvf  v2.0.0.tar.gz  
 # during the testing period using truatpasteurdotfr/barrier pre-released tarball
 # final version should use the https://github.com/debauchee/barrier release versions
-RUN cd barrier-2.0.0-RC2 && dpkg-buildpackage -us -uc | tee debian.log && tar czvf debian.tgz debian
+RUN cd barrier-2.0.0 && dpkg-buildpackage -us -uc | tee debian.log 
