@@ -13,4 +13,4 @@ dh-make
 RUN wget https://github.com/truatpasteurdotfr/barrier/archive/v2.0.0.tar.gz  && tar xzvf  v2.0.0.tar.gz  
 # during the testing period using truatpasteurdotfr/barrier pre-released tarball
 # final version should use the https://github.com/debauchee/barrier release versions
-RUN cd barrier-2.0.0 && dpkg-buildpackage -us -uc | tee debian.log && tar czvf debian.tgz debian
+RUN cd barrier-2.0.0 && dpkg-buildpackage -us -uc | tee debian.log 
