@@ -4,8 +4,7 @@ Summary: Keyboard and mouse sharing solution
 Group: Applications/Productivity
 URL: https://github.com/debauchee/barrier/
 Source: barrier-2.0.0.tar.gz
-# https://github.com/debauchee/barrier/archive/v2.0.0.tar.gz
-Vendor: Debauchee ### FIXME ###
+Vendor: <debauchee.oss@gmail.com>
 Packager: Tru Huynh <tru@pasteur.fr>
 License: GPLv2
 Release: 1%{?dist}
@@ -35,6 +34,7 @@ Work seamlessly across Windows, macOS and Linux.
 %endif
 
 %prep
+#%setup -n %{name}-2.0.0-RC2
 %setup -n %{name}-%{version}
 
 %build
@@ -67,7 +67,7 @@ scl enable devtoolset-3 ./clean_build.sh
 %{__mkdir} -p %{buildroot}%{_bindir} %{buildroot}%{_datarootdir}/applications %{buildroot}%{_datarootdir}/icons/hicolor/scalable/apps
 %{__install} -t %{buildroot}%{_datarootdir}/applications res/barrier.desktop
 %{__install} -t %{buildroot}%{_datarootdir}/icons/hicolor/scalable/apps res/barrier.svg
-%{__install} -t %{buildroot}%{_bindir} build/bin/{barrier,barrierc,barriers,syntool}
+%{__install} -t %{buildroot}%{_bindir} build/bin/{barrier,barrierc,barriers}
 
 %files
 %defattr(755,root,root,-)

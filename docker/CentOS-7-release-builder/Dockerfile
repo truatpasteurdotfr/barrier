@@ -6,7 +6,7 @@ RUN yum -y install cmake3 make qt5-qtbase-devel gcc \
  avahi-compat-libdns_sd-devel gcc-c++ curl-devel \
  openssl-devel \
  libXtst-devel libXinerama-devel libICE-devel libXrandr-devel \
- wget rpm-build 
+ wget rpm-build
 
 # during the testing period using truatpasteurdotfr/barrier pre-released tarball
 # final version should use the https://github.com/debauchee/barrier release versions
@@ -14,4 +14,3 @@ RUN mkdir -p ~/rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS} && \
 wget https://github.com/debauchee/barrier/archive/v2.0.0.tar.gz -O ~/rpmbuild/SOURCES/barrier-2.0.0.tar.gz && \
 wget https://raw.githubusercontent.com/truatpasteurdotfr/barrier/master/barrier.spec -O ~/rpmbuild/SPECS/barrier.spec  && \
 rpmbuild -ba ~/rpmbuild/SPECS/barrier.spec 
-#RUN wget https://github.com/truatpasteurdotfr/barrier/archive/v2.0.0-RC2.tar.gz  -O barrier-2.0.0-RC2.tar.gz  && rpmbuild -ta barrier-2.0.0-RC2.tar.gz  | tee rpmbuild.log
