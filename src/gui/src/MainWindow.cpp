@@ -31,6 +31,7 @@
 #include "ProcessorArch.h"
 #include "SslCertificate.h"
 #include "ShutdownCh.h"
+#include "common/DataDirectories.h"
 
 #include <QtCore>
 #include <QtGui>
@@ -72,6 +73,8 @@ static const char* barrierIconFiles[] =
     ":/res/icons/16x16/barrier-transfering.png"
 };
 
+static const char* barrierLargeIcon = ":/res/icons/256x256/barrier.ico";
+
 MainWindow::MainWindow(QSettings& settings, AppConfig& appConfig) :
     m_Settings(settings),
     m_AppConfig(&appConfig),
@@ -104,7 +107,7 @@ MainWindow::MainWindow(QSettings& settings, AppConfig& appConfig) :
     setAttribute(Qt::WA_X11NetWmWindowTypeDialog, true);
 
     setupUi(this);
-
+    setWindowIcon(QIcon(barrierLargeIcon));
     createMenuBar();
     loadSettings();
     initConnections();
@@ -285,13 +288,8 @@ void MainWindow::saveSettings()
 
 void MainWindow::setIcon(qBarrierState state)
 {
-    QIcon icon;
-    icon.addFile(barrierIconFiles[state]);
-
-    setWindowIcon(icon);
-
     if (m_pTrayIcon)
-        m_pTrayIcon->setIcon(icon);
+        m_pTrayIcon->setIcon(QIcon(barrierIconFiles[state]));
 }
 
 void MainWindow::trayActivated(QSystemTrayIcon::ActivationReason reason)
@@ -503,7 +501,7 @@ void MainWindow::startBarrier()
     // launched the process (e.g. when launched with elevation). setting the
     // profile dir on launch ensures it uses the same profile dir is used
     // no matter how its relaunched.
-    args << "--profile-dir" << getProfileRootForArg();
+    args << "--profile-dir" << QString::fromStdString("\"" + DataDirectories::profile() + "\"");
 #endif
 
     if ((barrierType() == barrierClient && !clientArgs(args, app))
@@ -1250,21 +1248,6 @@ void MainWindow::bonjourInstallFinished()
     appendLogInfo("Bonjour install finished");
 
     m_pCheckBoxAutoConfig->setChecked(true);
-}
-
-QString MainWindow::getProfileRootForArg()
-{
-    CoreInterface coreInterface;
-    QString dir = coreInterface.getProfileDir();
-
-    // HACK: strip our app name since we're returning the root dir.
-#if defined(Q_OS_WIN)
-    dir.replace("\\Barrier", "");
-#else
-    dir.replace("/.barrier", "");
-#endif
-
-    return QString("\"%1\"").arg(dir);
 }
 
 void MainWindow::windowStateChanged()
