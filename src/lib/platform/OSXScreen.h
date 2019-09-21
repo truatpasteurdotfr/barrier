@@ -118,7 +118,7 @@ private:
     void                sendClipboardEvent(Event::Type type, ClipboardID id) const;
 
     // message handlers
-    bool                onMouseMove(SInt32 mx, SInt32 my);
+    bool                onMouseMove(CGFloat mx, CGFloat my);
     // mouse button handler.  pressed is true if this is a mousedown
     // event, false if it is a mouseup event.  macButton is the index
     // of the button pressed using the mac button mapping.
@@ -144,10 +144,10 @@ private:
     ButtonID            mapMacButtonToBarrier(UInt16) const;
 
     // map mac scroll wheel value to a barrier scroll wheel value
-    SInt32                mapScrollWheelToBarrier(SInt32) const;
+    SInt32                mapScrollWheelToBarrier(float) const;
 
     // map barrier scroll wheel value to a mac scroll wheel value
-    SInt32                mapScrollWheelFromBarrier(SInt32) const;
+    SInt32                mapScrollWheelFromBarrier(float) const;
 
     // get the current scroll wheel speed
     double                getScrollSpeed() const;

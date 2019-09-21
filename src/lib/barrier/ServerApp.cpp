@@ -2,11 +2,11 @@
  * barrier -- mouse and keyboard sharing utility
  * Copyright (C) 2012-2016 Symless Ltd.
  * Copyright (C) 2002 Chris Schoeneman
- * 
+ *
  * This package is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * found in the file LICENSE that should have accompanied this file.
- * 
+ *
  * This package is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -49,6 +49,8 @@
 #if WINAPI_MSWINDOWS
 #include "platform/MSWindowsScreen.h"
 #elif WINAPI_XWINDOWS
+#include <unistd.h>
+#include <signal.h>
 #include "platform/XWindowsScreen.h"
 #elif WINAPI_CARBON
 #include "platform/OSXScreen.h"
@@ -95,13 +97,13 @@ ServerApp::parseArgs(int argc, const char* const* argv)
     else {
         if (!args().m_barrierAddress.empty()) {
             try {
-                *m_barrierAddress = NetworkAddress(args().m_barrierAddress, 
+                *m_barrierAddress = NetworkAddress(args().m_barrierAddress,
                     kDefaultPort);
                 m_barrierAddress->resolve();
             }
             catch (XSocketAddress& e) {
                 LOG((CLOG_PRINT "%s: %s" BYE,
-                    args().m_pname, e.what(), args().m_pname));
+                    args().m_exename.c_str(), e.what(), args().m_exename.c_str()));
                 m_bye(kExitArgs);
             }
         }
@@ -117,7 +119,10 @@ ServerApp::help()
     " [--display <display>] [--no-xinitthreads]"
 #  define WINAPI_INFO \
     "      --display <display>  connect to the X server at <display>\n" \
-    "      --no-xinitthreads    do not call XInitThreads()\n"
+    "      --no-xinitthreads    do not call XInitThreads()\n" \
+    "      --screen-change-script <path>\n" \
+    "                           full path to script to run on screen change\n" \
+    "                           first argument is the new screen name\n"
 #else
 #  define WINAPI_ARGS ""
 #  define WINAPI_INFO ""
@@ -126,7 +131,7 @@ ServerApp::help()
     std::ostringstream buffer;
     buffer << "Start the barrier server component." << std::endl
            << std::endl
-           << "Usage: " << args().m_pname
+           << "Usage: " << args().m_exename
            << " [--address <address>]"
            << " [--config <pathname>]"
            << WINAPI_ARGS << HELP_SYS_ARGS << HELP_COMMON_ARGS << std::endl
@@ -139,12 +144,13 @@ ServerApp::help()
            << std::endl
            << "The argument for --address is of the form: [<hostname>][:<port>].  The" << std::endl
            << "hostname must be the address or hostname of an interface on the system." << std::endl
-           << "The default is to listen on all interfaces.  The port overrides the" << std::endl
-           << "default port, " << kDefaultPort << "." << std::endl
+           << "Placing brackets around an IPv6 address is required when also specifying " << std::endl
+           << "a port number and optional otherwise. The default is to listen on all" << std::endl
+           << "interfaces using port number " << kDefaultPort << "." << std::endl
            << std::endl
            << "If no configuration file pathname is provided then the first of the" << std::endl
            << "following to load successfully sets the configuration:" << std::endl
-           << "  " << PathUtilities::concat(DataDirectories::profile(), SYS_CONFIG_NAME) << std::endl
+           << "  " << PathUtilities::concat(DataDirectories::profile(), USR_CONFIG_NAME) << std::endl
            << "  " << PathUtilities::concat(DataDirectories::systemconfig(), SYS_CONFIG_NAME) << std::endl;
 
     LOG((CLOG_PRINT "%s", buffer.str().c_str()));
@@ -207,7 +213,7 @@ ServerApp::loadConfig()
     }
 
     if (!loaded) {
-        LOG((CLOG_PRINT "%s: no configuration available", args().m_pname));
+        LOG((CLOG_PRINT "%s: no configuration available", args().m_exename.c_str()));
         m_bye(kExitConfig);
     }
 }
@@ -239,7 +245,7 @@ ServerApp::loadConfig(const String& pathname)
     return false;
 }
 
-void 
+void
 ServerApp::forceReconnect(const Event&, void*)
 {
     if (m_server != NULL) {
@@ -247,7 +253,7 @@ ServerApp::forceReconnect(const Event&, void*)
     }
 }
 
-void 
+void
 ServerApp::handleClientConnected(const Event&, void* vlistener)
 {
     ClientListener* listener = static_cast<ClientListener*>(vlistener);
@@ -281,7 +287,7 @@ ServerApp::closeServer(Server* server)
         new TMethodEventJob<ServerApp>(this, &ServerApp::handleClientsDisconnected));
     m_events->adoptHandler(m_events->forServer().disconnected(), server,
         new TMethodEventJob<ServerApp>(this, &ServerApp::handleClientsDisconnected));
-    
+
     m_events->loop();
 
     m_events->removeHandler(Event::kTimer, timer);
@@ -292,12 +298,12 @@ ServerApp::closeServer(Server* server)
     delete server;
 }
 
-void 
+void
 ServerApp::stopRetryTimer()
 {
     if (m_timer != NULL) {
+        m_events->removeHandler(Event::kTimer, m_timer);
         m_events->deleteTimer(m_timer);
-        m_events->removeHandler(Event::kTimer, NULL);
         m_timer = NULL;
     }
 }
@@ -316,7 +322,7 @@ void ServerApp::updateStatus(const String& msg)
     }
 }
 
-void 
+void
 ServerApp::closeClientListener(ClientListener* listen)
 {
     if (listen != NULL) {
@@ -325,7 +331,7 @@ ServerApp::closeClientListener(ClientListener* listen)
     }
 }
 
-void 
+void
 ServerApp::stopServer()
 {
     if (m_serverState == kStarted) {
@@ -349,7 +355,7 @@ ServerApp::closePrimaryClient(PrimaryClient* primaryClient)
     delete primaryClient;
 }
 
-void 
+void
 ServerApp::closeServerScreen(barrier::Screen* screen)
 {
     if (screen != NULL) {
@@ -506,7 +512,17 @@ ServerApp::openServerScreen()
     return screen;
 }
 
-bool 
+static const char* const family_string(IArchNetwork::EAddressFamily family)
+{
+    if (family == IArchNetwork::kINET)
+        return "IPv4";
+    if (family == IArchNetwork::kINET6)
+        // assume IPv6 sockets are setup to support IPv4 traffic as well
+        return "IPv4/IPv6";
+    return "Unknown";
+}
+
+bool
 ServerApp::startServer()
 {
     // skip if already started or starting
@@ -531,13 +547,15 @@ ServerApp::startServer()
     double retryTime;
     ClientListener* listener = NULL;
     try {
-        listener   = openClientListener(args().m_config->getBarrierAddress());
+        auto listenAddress = args().m_config->getBarrierAddress();
+        auto family = family_string(ARCH->getAddrFamily(listenAddress.getAddress()));
+        listener   = openClientListener(listenAddress);
         m_server   = openServer(*args().m_config, m_primaryClient);
         listener->setServer(m_server);
         m_server->setListener(listener);
         m_listener = listener;
         updateStatus();
-        LOG((CLOG_NOTE "started server, waiting for clients"));
+        LOG((CLOG_NOTE "started server (%s), waiting for clients", family));
         m_serverState = kStarted;
         return true;
     }
@@ -569,7 +587,7 @@ ServerApp::startServer()
     }
 }
 
-barrier::Screen* 
+barrier::Screen*
 ServerApp::createScreen()
 {
 #if WINAPI_MSWINDOWS
@@ -577,13 +595,14 @@ ServerApp::createScreen()
         true, args().m_noHooks, args().m_stopOnDeskSwitch, m_events), m_events);
 #elif WINAPI_XWINDOWS
     return new barrier::Screen(new XWindowsScreen(
+        new XWindowsImpl(),
         args().m_display, true, args().m_disableXInitThreads, 0, m_events), m_events);
 #elif WINAPI_CARBON
     return new barrier::Screen(new OSXScreen(m_events, true), m_events);
 #endif
 }
 
-PrimaryClient* 
+PrimaryClient*
 ServerApp::openPrimaryClient(const String& name, barrier::Screen* screen)
 {
     LOG((CLOG_DEBUG1 "creating primary screen"));
@@ -598,7 +617,7 @@ ServerApp::handleScreenError(const Event&, void*)
     m_events->addEvent(Event(Event::kQuit));
 }
 
-void 
+void
 ServerApp::handleSuspend(const Event&, void*)
 {
     if (!m_suspended) {
@@ -608,7 +627,7 @@ ServerApp::handleSuspend(const Event&, void*)
     }
 }
 
-void 
+void
 ServerApp::handleResume(const Event&, void*)
 {
     if (m_suspended) {
@@ -626,16 +645,16 @@ ServerApp::openClientListener(const NetworkAddress& address)
         new TCPSocketFactory(m_events, getSocketMultiplexer()),
         m_events,
         args().m_enableCrypto);
-    
+
     m_events->adoptHandler(
         m_events->forClientListener().connected(), listen,
         new TMethodEventJob<ServerApp>(
             this, &ServerApp::handleClientConnected, listen));
-    
+
     return listen;
 }
 
-Server* 
+Server*
 ServerApp::openServer(Config& config, PrimaryClient* primaryClient)
 {
     Server* server = new Server(config, primaryClient, m_serverScreen, m_events, args());
@@ -665,6 +684,28 @@ ServerApp::handleNoClients(const Event&, void*)
 void
 ServerApp::handleScreenSwitched(const Event& e, void*)
 {
+    Server::SwitchToScreenInfo* info = (Server::SwitchToScreenInfo*)(e.getData());
+
+    #ifdef WINAPI_XWINDOWS
+        if (!args().m_screenChangeScript.empty()) {
+            LOG((CLOG_INFO "Running shell script for screen \"%s\"", info->m_screen));
+
+            signal(SIGCHLD, SIG_IGN);
+
+            if (!access(args().m_screenChangeScript.c_str(), X_OK)) {
+                pid_t pid = fork();
+                if (pid == 0) {
+                    execl(args().m_screenChangeScript.c_str(),args().m_screenChangeScript.c_str(),info->m_screen,NULL);
+                    exit(0);
+                } else if (pid < 0) {
+                    LOG((CLOG_ERR "Script forking error"));
+                    exit(1);
+                }
+            } else {
+                LOG((CLOG_ERR "Script not accessible \"%s\"", args().m_screenChangeScript.c_str()));
+            }
+        }
+    #endif
 }
 
 int
@@ -672,8 +713,7 @@ ServerApp::mainLoop()
 {
     // create socket multiplexer.  this must happen after daemonization
     // on unix because threads evaporate across a fork().
-    SocketMultiplexer multiplexer;
-    setSocketMultiplexer(&multiplexer);
+    setSocketMultiplexer(std::make_unique<SocketMultiplexer>());
 
     // if configuration has no screens then add this system
     // as the default
@@ -700,7 +740,7 @@ ServerApp::mainLoop()
 
     // start server, etc
     appUtil().startNode();
-    
+
     // init ipc client after node start, since create a new screen wipes out
     // the event queue (the screen ctors call adoptBuffer).
     if (argsBase().m_enableIpc) {
@@ -729,24 +769,24 @@ ServerApp::mainLoop()
     // later.  the timer installed by startServer() will take care of
     // that.
     DAEMON_RUNNING(true);
-    
+
 #if defined(MAC_OS_X_VERSION_10_7)
-    
+
     Thread thread(
         new TMethodJob<ServerApp>(
             this, &ServerApp::runEventsLoop,
             NULL));
-    
+
     // wait until carbon loop is ready
     OSXScreen* screen = dynamic_cast<OSXScreen*>(
         m_serverScreen->getPlatformScreen());
     screen->waitForCarbonLoop();
-    
+
     runCocoaApp();
 #else
     m_events->loop();
 #endif
-    
+
     DAEMON_RUNNING(false);
 
     // close down
@@ -774,13 +814,13 @@ void ServerApp::resetServer(const Event&, void*)
     startServer();
 }
 
-int 
+int
 ServerApp::runInner(int argc, char** argv, ILogOutputter* outputter, StartupFunc startup)
 {
     // general initialization
     m_barrierAddress = new NetworkAddress;
     args().m_config         = new Config(m_events);
-    args().m_pname = PathUtilities::basename(argv[0]).c_str();
+    args().m_exename = PathUtilities::basename(argv[0]);
 
     // install caller's output filter
     if (outputter != NULL) {
@@ -805,7 +845,7 @@ int daemonMainLoopStatic(int argc, const char** argv) {
     return ServerApp::instance().daemonMainLoop(argc, argv);
 }
 
-int 
+int
 ServerApp::standardStartup(int argc, char** argv)
 {
     initApp(argc, argv);
@@ -819,7 +859,7 @@ ServerApp::standardStartup(int argc, char** argv)
     }
 }
 
-int 
+int
 ServerApp::foregroundStartup(int argc, char** argv)
 {
     initApp(argc, argv);
@@ -828,7 +868,7 @@ ServerApp::foregroundStartup(int argc, char** argv)
     return mainLoop();
 }
 
-const char* 
+const char*
 ServerApp::daemonName() const
 {
 #if SYSAPI_WIN32
@@ -838,7 +878,7 @@ ServerApp::daemonName() const
 #endif
 }
 
-const char* 
+const char*
 ServerApp::daemonInfo() const
 {
 #if SYSAPI_WIN32

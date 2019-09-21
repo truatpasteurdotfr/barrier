@@ -29,7 +29,7 @@
 #ifdef WINAPI_MSWINDOWS
 #include <VersionHelpers.h>
 #endif
- 
+
 ArgsBase* ArgParser::m_argsBase = NULL;
 
 ArgParser::ArgParser(App* app) :
@@ -61,8 +61,12 @@ ArgParser::parseServerArgs(ServerArgs& args, int argc, const char* const* argv)
             // save configuration file path
             args.m_configFile = argv[++i];
         }
+        else if (isArg(i, argc, argv, NULL, "--screen-change-script", 1)) {
+            // save screen change script path
+            args.m_screenChangeScript = argv[++i];
+        }
         else {
-            LOG((CLOG_PRINT "%s: unrecognized option `%s'" BYE, args.m_pname, argv[i], args.m_pname));
+            LOG((CLOG_PRINT "%s: unrecognized option `%s'" BYE, args.m_exename.c_str(), argv[i], args.m_exename.c_str()));
             return false;
         }
     }
@@ -107,7 +111,7 @@ ArgParser::parseClientArgs(ClientArgs& args, int argc, const char* const* argv)
                 return true;
             }
 
-            LOG((CLOG_PRINT "%s: unrecognized option `%s'" BYE, args.m_pname, argv[i], args.m_pname));
+            LOG((CLOG_PRINT "%s: unrecognized option `%s'" BYE, args.m_exename.c_str(), argv[i], args.m_exename.c_str()));
             return false;
         }
     }
@@ -118,7 +122,7 @@ ArgParser::parseClientArgs(ClientArgs& args, int argc, const char* const* argv)
     // exactly one non-option argument (server-address)
     if (i == argc) {
         LOG((CLOG_PRINT "%s: a server address or name is required" BYE,
-            args.m_pname, args.m_pname));
+            args.m_exename.c_str(), args.m_exename.c_str()));
         return false;
     }
 
@@ -313,7 +317,7 @@ ArgParser::isArg(
             // match.  check args left.
             if (argi + minRequiredParameters >= argc) {
                 LOG((CLOG_PRINT "%s: missing arguments for `%s'" BYE,
-                    argsBase().m_pname, argv[argi], argsBase().m_pname));
+                    argsBase().m_exename.c_str(), argv[argi], argsBase().m_exename.c_str()));
                 argsBase().m_shouldExit = true;
                 return false;
             }
@@ -456,7 +460,7 @@ void
 ArgParser::updateCommonArgs(const char* const* argv)
 {
     argsBase().m_name = ARCH->getHostName();
-    argsBase().m_pname = PathUtilities::basename(argv[0]).c_str();
+    argsBase().m_exename = PathUtilities::basename(argv[0]);
 }
 
 bool
@@ -470,7 +474,7 @@ ArgParser::checkUnexpectedArgs()
         LOG((CLOG_ERR
             "the --daemon argument is not supported on windows. "
             "instead, install %s as a service (--service install)",
-            argsBase().m_pname));
+            argsBase().m_exename.c_str()));
         return true;
     }
 #endif

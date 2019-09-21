@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define TRAY_RETRY_COUNT 10
+#define TRAY_RETRY_COUNT 5
 #define TRAY_RETRY_WAIT 2000
 
 #include "QBarrierApplication.h"
@@ -74,8 +74,13 @@ int main(int argc, char* argv[])
 	QBarrierApplication app(argc, argv);
 
 #if defined(Q_OS_MAC)
-
 	if (app.applicationDirPath().startsWith("/Volumes/")) {
+        // macOS preferences track applications allowed assistive access by path
+        // Unfortunately, there's no user-friendly way to allow assistive access
+        // to applications that are not in default paths (/Applications),
+        // especially if an identically named application already exists in
+        // /Applications). Thus we require Barrier to reside in the /Applications
+        // folder
 		QMessageBox::information(
 			NULL, "Barrier",
 			"Please drag Barrier to the Applications folder, and open it from there.");
@@ -88,15 +93,19 @@ int main(int argc, char* argv[])
 	}
 #endif
 
-	if (!waitForTray())
-	{
-		return -1;
-	}
+	int trayAvailable = waitForTray();
 
 	QApplication::setQuitOnLastWindowClosed(false);
 
 	QSettings settings;
 	AppConfig appConfig (&settings);
+
+	if (appConfig.getAutoHide() && !trayAvailable)
+	{
+		// force auto hide to false - otherwise there is no way to get the GUI back
+		fprintf(stdout, "System tray not available, force disabling auto hide!\n");
+		appConfig.setAutoHide(false);
+	}
 
 	app.switchTranslator(appConfig.language());
 
@@ -129,9 +138,8 @@ int waitForTray()
 
 		if (++trayAttempts > TRAY_RETRY_COUNT)
 		{
-			QMessageBox::critical(NULL, "Barrier",
-				QObject::tr("System tray is unavailable, don't close your window."));
-			return true;
+			fprintf(stdout, "System tray is unavailable.\n");
+			return false;
 		}
 
 		QThreadImpl::msleep(TRAY_RETRY_WAIT);

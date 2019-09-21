@@ -22,6 +22,7 @@
 #include "barrier/KeyMap.h"
 #include "common/stdset.h"
 #include "common/stdvector.h"
+#include "XWindowsImpl.h"
 
 #if X_DISPLAY_MISSING
 #    error X11 is required to build barrier
@@ -36,7 +37,7 @@ class XWindowsScreenSaver;
 //! Implementation of IPlatformScreen for X11
 class XWindowsScreen : public PlatformScreen {
 public:
-    XWindowsScreen(const char* displayName, bool isPrimary,
+    XWindowsScreen(IXWindowsImpl* impl, const char* displayName, bool isPrimary,
         bool disableXInitThreads, int mouseScrollDelta,
         IEventQueue* events);
     virtual ~XWindowsScreen();
@@ -136,6 +137,11 @@ private:
     void                onMouseRelease(const XButtonEvent&);
     void                onMouseMove(const XMotionEvent&);
 
+    // Returns the number of scroll events needed after the current delta has
+    // been taken into account
+    int                 x_accumulateMouseScroll(SInt32 xDelta) const;
+    int                 y_accumulateMouseScroll(SInt32 yDelta) const;
+
     bool                detectXI2();
 #ifdef HAVE_XI2
     void                selectXIRawMotion();
@@ -170,9 +176,19 @@ private:
     typedef std::vector<UInt32> HotKeyIDList;
     typedef std::map<HotKeyItem, UInt32> HotKeyToIDMap;
 
+    IXWindowsImpl*       m_impl;
+
     // true if screen is being used as a primary screen, false otherwise
     bool                m_isPrimary;
+
+    // The size of a smallest supported scroll event, in points
     int                 m_mouseScrollDelta;
+
+    // Accumulates scrolls of less than m_?_mouseScrollDelta across multiple
+    // scroll events. We dispatch a scroll event whenever the accumulated scroll
+    // becomes larger than m_?_mouseScrollDelta
+    mutable int         m_x_accumulatedScroll;
+    mutable int         m_y_accumulatedScroll;
 
     Display*            m_display;
     Window                m_root;

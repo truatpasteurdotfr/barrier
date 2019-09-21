@@ -79,18 +79,9 @@ App::~App()
 void
 App::version()
 {
-    char buffer[500];
-    sprintf(
-        buffer,
-        "%s %s, protocol version %d.%d\n%s",
-        argsBase().m_pname,
-        kVersion,
-        kProtocolMajorVersion,
-        kProtocolMinorVersion,
-        kCopyright
-        );
-
-    std::cout << buffer << std::endl;
+    std::cout << argsBase().m_exename << " " << kVersion << std::endl;
+    std::cout <<"Protocol version " << kProtocolMajorVersion << "." << kProtocolMinorVersion << std::endl;
+    std::cout << kCopyright << std::endl;
 }
 
 int
@@ -178,7 +169,7 @@ App::initApp(int argc, const char** argv)
     // set log filter
     if (!CLOG->setFilter(argsBase().m_logFilter)) {
         LOG((CLOG_PRINT "%s: unrecognized log level `%s'" BYE,
-            argsBase().m_pname, argsBase().m_logFilter, argsBase().m_pname));
+            argsBase().m_exename.c_str(), argsBase().m_logFilter, argsBase().m_exename.c_str()));
         m_bye(kExitArgs);
     }
     loggingFilterWarning();
@@ -209,7 +200,7 @@ App::initApp(int argc, const char** argv)
 void
 App::initIpcClient()
 {
-    m_ipcClient = new IpcClient(m_events, m_socketMultiplexer);
+    m_ipcClient = new IpcClient(m_events, m_socketMultiplexer.get());
     m_ipcClient->connect();
 
     m_events->adoptHandler(

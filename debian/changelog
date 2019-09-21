@@ -1,6 +1,5 @@
-barrier (2.0.0-1) unstable; urgency=low
+barrier (2.1-1) unstable; urgency=low
 
-    * Initial Release.
+  * Initial release (Closes: #123456)
 
-      -- Tru Huynh <tru@pasteur.fr>  Fri,  8 Mar 2018 23:00 +01:00
-
+ -- Debauchee Open Source Group <debauchee.oss@gmail.com>  Sat, 01 Apr 2018 00:00:00 +0000

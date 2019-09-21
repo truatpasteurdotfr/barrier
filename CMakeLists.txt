@@ -21,6 +21,7 @@ project (barrier C CXX)
 option (BARRIER_BUILD_GUI "Build the GUI" ON)
 option (BARRIER_BUILD_INSTALLER "Build the installer" ON)
 
+set (CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set (CMAKE_CXX_STANDARD 14)
 set (CMAKE_CXX_EXTENSIONS OFF)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -52,7 +53,7 @@ include_directories (BEFORE SYSTEM ./ext/gtest/include)
 
 if (UNIX)
     if (NOT APPLE)
-        set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+        set (CMAKE_POSITION_INDEPENDENT_CODE TRUE)
     endif()
 
     # For config.h, detect the libraries, functions, etc.
@@ -63,6 +64,7 @@ if (UNIX)
     include (CheckIncludeFileCXX)
     include (CheckSymbolExists)
     include (CheckCSourceCompiles)
+    include (FindPkgConfig)
 
     check_include_file_cxx (istream HAVE_ISTREAM)
     check_include_file_cxx (ostream HAVE_OSTREAM)
@@ -131,7 +133,9 @@ if (UNIX)
     # curl is used on both Linux and Mac
     find_package (CURL)
     if (CURL_FOUND)
-        list (APPEND libs curl)
+        include_directories(${CURL_INCLUDE_DIRS})
+        list (APPEND libs ${CURL_LIBRARIES})
+
     else()
         message (FATAL_ERROR "Missing library: curl")
     endif()
@@ -163,6 +167,12 @@ if (UNIX)
             link_directories("/usr/local/lib")
         endif()
 
+        if (${PKG_CONFIG_FOUND})
+            pkg_check_modules (AVAHI_COMPAT REQUIRED avahi-compat-libdns_sd)
+            include_directories (BEFORE SYSTEM ${AVAHI_COMPAT_INCLUDE_DIRS})
+            set (CMAKE_REQUIRED_INCLUDES "${CMAKE_REQUIRED_INCLUDES};${AVAHI_COMPAT_INCLUDE_DIRS}")
+        endif ()
+
         set (XKBlib "X11/Xlib.h;X11/XKBlib.h")
         set (CMAKE_EXTRA_INCLUDE_FILES "${XKBlib};X11/extensions/Xrandr.h")
         check_type_size ("XRRNotifyEvent" X11_EXTENSIONS_XRANDR_H)
@@ -187,7 +197,7 @@ if (UNIX)
             message (FATAL_ERROR "Missing header: " ${XKBlib})
         endif()
 
-        if (NOT HAVE_DNSSD)
+        if (BARRIER_BUILD_GUI AND NOT HAVE_DNSSD)
             message (FATAL_ERROR "Missing header: dns_sd.h")
         endif()
 
@@ -302,13 +312,30 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         ${OPENSSL_ROOT}/lib/ssleay32.lib
     )
 elseif (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    set (OPENSSL_ROOT /usr/local/opt/openssl)
+    find_program(BREW_PROGRAM "brew")
+    find_program(PORT_PROGRAM "port")
+    
+    if (IS_DIRECTORY /opt/local AND PORT_PROGRAM)
+        # macports
+        set (OPENSSL_ROOT /opt/local)
 
-    include_directories (BEFORE SYSTEM ${OPENSSL_ROOT}/include)
-    set (OPENSSL_LIBS
-        ${OPENSSL_ROOT}/lib/libssl.a
-        ${OPENSSL_ROOT}/lib/libcrypto.a
-    )
+        set (OPENSSL_LIBS
+            ${OPENSSL_ROOT}/lib/libssl.a
+            ${OPENSSL_ROOT}/lib/libcrypto.a
+            z
+        )
+    elseif (IS_DIRECTORY /usr/local/opt/openssl AND BREW_PROGRAM)
+        # brew
+        set (OPENSSL_ROOT /usr/local/opt/openssl)
+
+        include_directories (BEFORE SYSTEM ${OPENSSL_ROOT}/include)
+
+        set (OPENSSL_LIBS
+            ${OPENSSL_ROOT}/lib/libssl.a
+            ${OPENSSL_ROOT}/lib/libcrypto.a
+        )
+    endif()
+
 elseif (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     set (OPENSSL_LIBS ssl crypto)
 else()
@@ -321,6 +348,12 @@ else()
     endif()
     set (OPENSSL_LIBS ${lib_ssl} ${lib_crypto})
 endif()
+
+
+# Check we have the *required* Qt5 libs.
+find_package(Qt5Core REQUIRED)
+find_package(Qt5Network REQUIRED)
+find_package(Qt5Widgets REQUIRED)
 
 #
 # Configure_file... but for directories, recursively.
@@ -364,12 +397,20 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set (BARRIER_BUNDLE_BINARY_DIR ${BARRIER_BUNDLE_APP_DIR}/Contents/MacOS)
 
     configure_files (${BARRIER_BUNDLE_SOURCE_DIR} ${BARRIER_BUNDLE_DIR})
+
+    if (CMAKE_BUILD_TYPE STREQUAL "Release")
+        add_custom_target(Barrier_dmg ALL
+                          bash build_installer.sh
+                          DEPENDS barrier barriers barrierc
+                          WORKING_DIRECTORY ${BARRIER_BUNDLE_DIR})
+    endif()
 endif()
 
 #
 # Windows installer
 #
 if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+        set (BARRIER_WIX_VERSION "${BARRIER_VERSION_MAJOR}.${BARRIER_VERSION_MINOR}.${BARRIER_VERSION_PATCH}")
         message (STATUS "Configuring the wix installer")
         configure_files (${CMAKE_CURRENT_SOURCE_DIR}/dist/wix ${CMAKE_BINARY_DIR}/installer-wix)
         message (STATUS "Configuring the inno installer")

@@ -44,8 +44,7 @@ public:
     // IDataSocket overrides
     virtual void        connect(const NetworkAddress&);
     
-    ISocketMultiplexerJob*
-                        newJob();
+    std::unique_ptr<ISocketMultiplexerJob> newJob() override;
     bool                isFatal() const { return m_fatal; }
     void                isFatal(bool b) { m_fatal = b; }
     bool                isSecureReady();
@@ -74,19 +73,16 @@ private:
                                             bool separator = true);
     bool                verifyCertFingerprint();
 
-    ISocketMultiplexerJob*
-                        serviceConnect(ISocketMultiplexerJob*,
-                            bool, bool, bool);
-
-    ISocketMultiplexerJob*
-                        serviceAccept(ISocketMultiplexerJob*,
-                            bool, bool, bool);
+    MultiplexerJobStatus serviceConnect(ISocketMultiplexerJob*, bool, bool, bool);
+    MultiplexerJobStatus serviceAccept(ISocketMultiplexerJob*, bool, bool, bool);
 
     void                showSecureConnectInfo();
     void                showSecureLibInfo();
     void                showSecureCipherInfo();
     
     void                handleTCPConnected(const Event& event, void*);
+
+    void freeSSLResources();
 
 private:
     Ssl*                m_ssl;

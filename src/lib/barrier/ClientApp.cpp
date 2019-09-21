@@ -95,7 +95,7 @@ ClientApp::parseArgs(int argc, const char* const* argv)
                 // Priddy.
                 if (!args().m_restartable || e.getError() == XSocketAddress::kBadPort) {
                     LOG((CLOG_PRINT "%s: %s" BYE,
-                        args().m_pname, e.what(), args().m_pname));
+                        args().m_exename.c_str(), e.what(), args().m_exename.c_str()));
                     m_bye(kExitFailed);
                 }
             }
@@ -120,7 +120,7 @@ ClientApp::help()
     std::ostringstream buffer;
     buffer << "Start the barrier client and connect to a remote server component." << std::endl
            << std::endl
-           << "Usage: " << args().m_pname << " [--yscroll <delta>]" <<  WINAPI_ARG << HELP_SYS_ARGS
+           << "Usage: " << args().m_exename << " [--yscroll <delta>]" <<  WINAPI_ARG << HELP_SYS_ARGS
            << HELP_COMMON_ARGS << " <server-address>" << std::endl
            << std::endl
            << "Options:" << std::endl
@@ -131,9 +131,10 @@ ClientApp::help()
            << std::endl
            << "Default options are marked with a *" << std::endl
            << std::endl
-           << "The server address is of the form: [<hostname>][:<port>].  The hostname" << std::endl
-           << "must be the address or hostname of the server.  The port overrides the" << std::endl
-           << "default port, " << kDefaultPort << "." << std::endl;
+           << "The server address is of the form: [<hostname>][:<port>]. The hostname" << std::endl
+           << "must be the address or hostname of the server. Placing brackets around" << std::endl
+           << "an IPv6 address is required when also specifying a port number and " << std::endl
+           << "optional otherwise. The default port number is " << kDefaultPort << "." << std::endl;
 
     LOG((CLOG_PRINT "%s", buffer.str().c_str()));
 }
@@ -166,6 +167,7 @@ ClientApp::createScreen()
         false, args().m_noHooks, args().m_stopOnDeskSwitch, m_events), m_events);
 #elif WINAPI_XWINDOWS
     return new barrier::Screen(new XWindowsScreen(
+        new XWindowsImpl(),
         args().m_display, false, args().m_disableXInitThreads,
         args().m_yscroll, m_events), m_events);
 #elif WINAPI_CARBON
@@ -441,8 +443,7 @@ ClientApp::mainLoop()
 {
     // create socket multiplexer.  this must happen after daemonization
     // on unix because threads evaporate across a fork().
-    SocketMultiplexer multiplexer;
-    setSocketMultiplexer(&multiplexer);
+    setSocketMultiplexer(std::make_unique<SocketMultiplexer>());
 
     // start client, etc
     appUtil().startNode();
@@ -516,7 +517,7 @@ ClientApp::runInner(int argc, char** argv, ILogOutputter* outputter, StartupFunc
 {
     // general initialization
     m_serverAddress = new NetworkAddress;
-    args().m_pname = PathUtilities::basename(argv[0]).c_str();
+    args().m_exename = PathUtilities::basename(argv[0]);
 
     // install caller's output filter
     if (outputter != NULL) {

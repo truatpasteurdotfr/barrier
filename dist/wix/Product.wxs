@@ -31,7 +31,6 @@
 		<Property Id="ARPPRODUCTICON" Value="barrier.ico"/>
 		<Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER"/>
 		<Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable"/>
-    </Condition>
 		<CustomAction ExeCommand="" FileKey="GuiProgram" Id="StartGui" Return="asyncNoWait"/>
 		<UI>
 			<Publish Control="Finish" Dialog="ExitDialog" Event="DoAction" Value="StartGui">NOT Installed</Publish>
@@ -60,8 +59,6 @@
 					<fire:FirewallException Id="ServerFirewallException" IgnoreFailure="yes" Name="$(var.Name)" Scope="any"/>
 				</File>
 				<File Source="$(var.BinPath)/barrierc.exe"/>
-				<File Source="$(var.BinPath)/syntool.exe"/>
-				<File Source="$(var.BinPath)/synwinhk.dll"/>
 				<File Source="$(var.OpenSSLBinPath)/libeay32.dll"/>
 				<File Source="$(var.OpenSSLBinPath)/ssleay32.dll"/>
 				<File Source="$(var.OpenSSLBinPath)/openssl.exe"/>

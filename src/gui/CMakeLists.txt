@@ -22,7 +22,7 @@ add_executable (barrier WIN32
 
 include_directories (./src)
 
-qt5_use_modules (barrier Core Widgets Network)
+target_link_libraries (barrier Qt5::Core Qt5::Widgets Qt5::Network)
 target_compile_definitions (barrier PRIVATE -DBARRIER_VERSION_STAGE="${BARRIER_VERSION_STAGE}")
 target_compile_definitions (barrier PRIVATE -DBARRIER_REVISION="${BARRIER_REVISION}")
 
@@ -36,8 +36,7 @@ if (WIN32)
 elseif (APPLE)
     find_library(APPSERVICES_LIB ApplicationServices)
     target_link_libraries(barrier ${APPSERVICES_LIB})
-elseif (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR
-        ${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+else()
     target_link_libraries (barrier dns_sd)
 endif()
 

@@ -83,17 +83,9 @@ SecureSocket::~SecureSocket()
     // take socket from multiplexer ASAP otherwise the race condition
     // could cause events to get called on a dead object. TCPSocket
     // will do this, too, but the double-call is harmless
-    setJob(NULL);
-    if (m_ssl->m_ssl != NULL) {
-        SSL_shutdown(m_ssl->m_ssl);
+    removeJob();
+    freeSSLResources();
 
-        SSL_free(m_ssl->m_ssl);
-        m_ssl->m_ssl = NULL;
-    }
-    if (m_ssl->m_context != NULL) {
-        SSL_CTX_free(m_ssl->m_context);
-        m_ssl->m_context = NULL;
-    }
     // removing sleep() because I have no idea why you would want to do it
     // ... smells of trying to cover up a bug you don't understand
     //ARCH->sleep(1);
@@ -104,10 +96,22 @@ void
 SecureSocket::close()
 {
     isFatal(true);
-
-    SSL_shutdown(m_ssl->m_ssl);
-
+    freeSSLResources();
     TCPSocket::close();
+}
+
+void SecureSocket::freeSSLResources()
+{
+    if (m_ssl->m_ssl != NULL) {
+        SSL_shutdown(m_ssl->m_ssl);
+        SSL_free(m_ssl->m_ssl);
+        m_ssl->m_ssl = NULL;
+    }
+
+    if (m_ssl->m_context != NULL) {
+        SSL_CTX_free(m_ssl->m_context);
+        m_ssl->m_context = NULL;
+    }
 }
 
 void
@@ -121,13 +125,12 @@ SecureSocket::connect(const NetworkAddress& addr)
     TCPSocket::connect(addr);
 }
 
-ISocketMultiplexerJob*
-SecureSocket::newJob()
+std::unique_ptr<ISocketMultiplexerJob> SecureSocket::newJob()
 {
     // after TCP connection is established, SecureSocket will pick up
     // connected event and do secureConnect
     if (m_connected && !m_secureReady) {
-        return NULL;
+        return {};
     }
     
     return TCPSocket::newJob();
@@ -136,7 +139,7 @@ SecureSocket::newJob()
 void
 SecureSocket::secureConnect()
 {
-    setJob(new TSocketMultiplexerMethodJob<SecureSocket>(
+    setJob(std::make_unique<TSocketMultiplexerMethodJob<SecureSocket>>(
                     this, &SecureSocket::serviceConnect,
                     getSocket(), isReadable(), isWritable()));
 }
@@ -144,7 +147,7 @@ SecureSocket::secureConnect()
 void
 SecureSocket::secureAccept()
 {
-    setJob(new TSocketMultiplexerMethodJob<SecureSocket>(
+    setJob(std::make_unique<TSocketMultiplexerMethodJob<SecureSocket>>(
                     this, &SecureSocket::serviceAccept,
                     getSocket(), isReadable(), isWritable()));
 }
@@ -704,18 +707,30 @@ SecureSocket::verifyCertFingerprint()
         kFingerprintDirName,
         kFingerprintTrustedServersFilename);
 
+    // Provide debug hint as to what file is being used to verify fingerprint trust
+    LOG((CLOG_NOTE "trustedServersFilename: %s", trustedServersFilename.c_str() ));
+
     // check if this fingerprint exist
     String fileLine;
     std::ifstream file;
     file.open(trustedServersFilename.c_str());
+
+    if (!file.is_open()) {
+        LOG((CLOG_NOTE "Unable to open trustedServersFile: %s", trustedServersFilename.c_str() ));
+    } else {
+        LOG((CLOG_NOTE "Opened trustedServersFilename: %s", trustedServersFilename.c_str() ));
+    }
 
     bool isValid = false;
     while (!file.eof() && file.is_open()) {
         getline(file,fileLine);
         if (!fileLine.empty()) {
             if (fileLine.compare(fingerprint) == 0) {
+                LOG((CLOG_NOTE "Fingerprint matches trusted fingerprint"));
                 isValid = true;
                 break;
+            } else {
+                LOG((CLOG_NOTE "Fingerprint does not match trusted fingerprint"));
             }
         }
     }
@@ -724,10 +739,11 @@ SecureSocket::verifyCertFingerprint()
     return isValid;
 }
 
-ISocketMultiplexerJob*
-SecureSocket::serviceConnect(ISocketMultiplexerJob* job,
-                bool, bool write, bool error)
+MultiplexerJobStatus SecureSocket::serviceConnect(ISocketMultiplexerJob* job,
+                                                  bool read, bool write, bool error)
 {
+    (void) read;
+
     Lock lock(&getMutex());
 
     int status = 0;
@@ -739,25 +755,28 @@ SecureSocket::serviceConnect(ISocketMultiplexerJob* job,
 
     // If status < 0, error happened
     if (status < 0) {
-        return NULL;
+        return {false, {}};
     }
 
     // If status > 0, success
     if (status > 0) {
         sendEvent(m_events->forIDataSocket().secureConnected());
-        return newJob();
+        return {true, newJob()};
     }
 
     // Retry case
-    return new TSocketMultiplexerMethodJob<SecureSocket>(
+    return {
+        true,
+        std::make_unique<TSocketMultiplexerMethodJob<SecureSocket>>(
             this, &SecureSocket::serviceConnect,
-            getSocket(), isReadable(), isWritable());
+            getSocket(), isReadable(), isWritable())
+    };
 }
 
-ISocketMultiplexerJob*
-SecureSocket::serviceAccept(ISocketMultiplexerJob* job,
-                bool, bool write, bool error)
+MultiplexerJobStatus SecureSocket::serviceAccept(ISocketMultiplexerJob* job,
+                                                 bool read, bool write, bool error)
 {
+    (void) read;
     Lock lock(&getMutex());
 
     int status = 0;
@@ -768,19 +787,19 @@ SecureSocket::serviceAccept(ISocketMultiplexerJob* job,
 #endif
         // If status < 0, error happened
     if (status < 0) {
-        return NULL;
+        return {false, {}};
     }
 
     // If status > 0, success
     if (status > 0) {
         sendEvent(m_events->forClientListener().accepted());
-        return newJob();
+        return {true, newJob()};
     }
 
     // Retry case
-    return new TSocketMultiplexerMethodJob<SecureSocket>(
+    return {true, std::make_unique<TSocketMultiplexerMethodJob<SecureSocket>>(
             this, &SecureSocket::serviceAccept,
-            getSocket(), isReadable(), isWritable());
+            getSocket(), isReadable(), isWritable())};
 }
 
 void
